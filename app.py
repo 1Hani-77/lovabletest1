@@ -1,9 +1,20 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# Check for required sklearn components
+try:
+    from sklearn.model_selection import train_test_split
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+except ImportError as e:
+    st.error(f"""
+    Critical dependency error: {e}
+    
+    Please install required packages using:
+    !pip install scikit-learn pandas numpy streamlit
+    """)
+    st.stop()
 
 # Set page configuration
 st.set_page_config(
@@ -25,241 +36,150 @@ page = st.sidebar.radio("Go to", ["Home", "Prediction", "Dataset", "About"])
 # Function to load data
 @st.cache_data
 def load_data():
-    # Load data from CSV URL
-    data_url = "https://raw.githubusercontent.com/1Hani-77/TEST/refs/heads/main/abha%20real%20estate.csv"
-    df = pd.read_csv(data_url)
-    
-    # Clean up column names (remove any spaces, special characters)
-    df.columns = df.columns.str.strip().str.lower()
-    
-    # Rename columns to match expected names if needed
-    column_mapping = {
-        'price': 'price_in_SAR',
-        'price(sar)': 'price_in_SAR',
-        'price in sar': 'price_in_SAR',
-        'neighborhood': 'neighborhood_name'
-    }
-    
-    df = df.rename(columns=column_mapping)
-    
-    # Print column names for debugging
-    st.sidebar.write("Dataset columns:", df.columns.tolist())
-    
-    # Make sure required columns exist
-    required_columns = ['neighborhood_name', 'area', 'price_in_SAR']
-    for col in required_columns:
-        if col not in df.columns:
-            st.sidebar.error(f"Required column '{col}' not found. Available columns: {df.columns.tolist()}")
-    
-    return df
+    try:
+        data_url = "https://raw.githubusercontent.com/1Hani-77/TEST/refs/heads/main/abha%20real%20estate.csv"
+        df = pd.read_csv(data_url)
+        
+        # Clean column names
+        df.columns = df.columns.str.strip().str.lower()
+        
+        # Column name standardization
+        column_mapping = {
+            'price': 'price_in_sar',
+            'price(sar)': 'price_in_sar',
+            'price in sar': 'price_in_sar',
+            'neighborhood': 'neighborhood_name'
+        }
+        
+        df = df.rename(columns=column_mapping)
+        
+        return df
+    except Exception as e:
+        st.error(f"Error loading data: {e}")
+        st.stop()
 
 # Load the data
 df = load_data()
 
 # Function to preprocess data
 def preprocess_data(df):
-    # Create a copy to avoid modifying the original dataframe
-    processed_df = df.copy()
-    
-    # Encode categorical columns if present
-    if 'neighborhood_name' in processed_df.columns:
-        processed_df['neighborhood_encoded'] = pd.factorize(processed_df['neighborhood_name'])[0]
-    
-    # Create price per square meter feature if area and price columns exist
-    if 'area' in processed_df.columns and 'price_in_SAR' in processed_df.columns:
-        processed_df['price_per_sqm'] = processed_df['price_in_SAR'] / processed_df['area']
-    
-    return processed_df
+    try:
+        processed_df = df.copy()
+        
+        if 'neighborhood_name' in processed_df.columns:
+            processed_df['neighborhood_encoded'] = pd.factorize(processed_df['neighborhood_name'])[0]
+        
+        if 'area' in processed_df.columns and 'price_in_sar' in processed_df.columns:
+            processed_df['price_per_sqm'] = processed_df['price_in_sar'] / processed_df['area']
+        
+        return processed_df
+    except Exception as e:
+        st.error(f"Data processing error: {e}")
+        st.stop()
 
 # Function to train model
 def train_model(df):
-    # Preprocess the data
-    processed_df = preprocess_data(df)
-    
-    # Define features and target
-    # Dynamically select available features
-    features = []
-    if 'neighborhood_encoded' in processed_df.columns:
-        features.append('neighborhood_encoded')
-    if 'area' in processed_df.columns:
-        features.append('area')
-    
-    # Make sure we have the target column
-    if 'price_in_SAR' not in processed_df.columns:
-        st.error("Required column 'price_in_SAR' not found in dataset.")
-        return None, processed_df, 0, 0, 0
-    
-    X = processed_df[features]
-    y = processed_df['price_in_SAR']
-    
-    # Split the data
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    # Train a Random Forest model
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X_train, y_train)
-    
-    # Make predictions on the test set
-    y_pred = model.predict(X_test)
-    
-    # Calculate metrics
-    mae = mean_absolute_error(y_test, y_pred)
-    mse = mean_squared_error(y_test, y_pred)
-    rmse = np.sqrt(mse)
-    r2 = r2_score(y_test, y_pred)
-    
-    return model, processed_df, mae, rmse, r2
+    try:
+        processed_df = preprocess_data(df)
+        
+        features = []
+        if 'neighborhood_encoded' in processed_df.columns:
+            features.append('neighborhood_encoded')
+        if 'area' in processed_df.columns:
+            features.append('area')
+        
+        if 'price_in_sar' not in processed_df.columns:
+            st.error("Missing price column in dataset")
+            return None, None, None, None, None
+        
+        X = processed_df[features]
+        y = processed_df['price_in_sar']
+        
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        
+        model = RandomForestRegressor(n_estimators=100, random_state=42)
+        model.fit(X_train, y_train)
+        
+        y_pred = model.predict(X_test)
+        
+        mae = mean_absolute_error(y_test, y_pred)
+        rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+        r2 = r2_score(y_test, y_pred)
+        
+        return model, processed_df, mae, rmse, r2
+    except Exception as e:
+        st.error(f"Model training error: {e}")
+        st.stop()
 
-# Home page
+# Page rendering
 if page == "Home":
     st.header("Welcome to the Abha Real Estate Price Predictor")
     st.write("""
     This application uses machine learning to predict real estate prices in Abha, Saudi Arabia.
-    
-    **Features:**
-    - Predict property prices based on neighborhood, area, and other features
-    - Explore the dataset with interactive visualizations
-    - Learn about the model's performance metrics
-    
-    Navigate using the sidebar to explore different sections of the app.
     """)
-    
     st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Abha_City.jpg/1200px-Abha_City.jpg", 
              caption="Abha City, Saudi Arabia")
 
-# Prediction page
 elif page == "Prediction":
     st.header("Predict Real Estate Prices")
     
-    # Check if dataframe has the required columns
-    required_columns = ['neighborhood_name', 'area', 'price_in_SAR']
-    missing_columns = [col for col in required_columns if col not in df.columns]
-    
-    if missing_columns:
-        st.error(f"Missing required columns: {', '.join(missing_columns)}")
-        st.write("Available columns:", df.columns.tolist())
-    else:
-        # Train the model
+    if df is not None:
         model_result = train_model(df)
         
-        if model_result is None:
-            st.error("Failed to train model. Please check the dataset.")
-        else:
+        if model_result[0] is not None:
             model, processed_df, mae, rmse, r2 = model_result
             
-            # Get unique neighborhoods
             neighborhoods = df['neighborhood_name'].unique()
             
-            # Create input form
             with st.form("prediction_form"):
                 st.subheader("Enter Property Details")
-                
-                # Neighborhood selection
                 neighborhood = st.selectbox("Select Neighborhood", neighborhoods)
+                area = st.number_input("Property Area (sqm)", 
+                                     min_value=int(df['area'].min()), 
+                                     max_value=int(df['area'].max()),
+                                     value=int(df['area'].median()))
                 
-                # Area input
-                min_area = int(df['area'].min())
-                max_area = int(df['area'].max())
-                default_area = int((min_area + max_area) / 2)
-                area = st.number_input("Property Area (sqm)", min_value=min_area, max_value=max_area, value=default_area)
-                
-                # Submit button
-                submitted = st.form_submit_button("Predict Price")
-                
-                if submitted:
-                    # Preprocess input
-                    neighborhood_encoded = processed_df[processed_df['neighborhood_name'] == neighborhood]['neighborhood_encoded'].values[0]
-                    
-                    # Make prediction
-                    input_features = []
-                    input_data = {}
-                    
-                    if 'neighborhood_encoded' in processed_df.columns:
-                        input_data['neighborhood_encoded'] = [neighborhood_encoded]
-                        input_features.append('neighborhood_encoded')
-                    
-                    if 'area' in processed_df.columns:
-                        input_data['area'] = [area]
-                        input_features.append('area')
-                    
-                    if not input_features:
-                        st.error("No valid features found for prediction.")
-                    else:
-                        input_df = pd.DataFrame(input_data)
-                        prediction = model.predict(input_df[input_features])[0]
+                if st.form_submit_button("Predict Price"):
+                    try:
+                        neighborhood_encoded = processed_df[processed_df['neighborhood_name'] == neighborhood]['neighborhood_encoded'].values[0]
+                        input_data = [[neighborhood_encoded, area]]
+                        prediction = model.predict(input_data)[0]
                         
-                        # Display result
                         st.success(f"Predicted Price: {prediction:,.2f} SAR")
-                        
-                        # Display price per square meter
-                        price_per_sqm = prediction / area
-                        st.info(f"Price per Square Meter: {price_per_sqm:,.2f} SAR")
-            
-            # Display model metrics
-            st.subheader("Model Performance Metrics")
+                        st.info(f"Price per Square Meter: {prediction/area:,.2f} SAR")
+                    except Exception as e:
+                        st.error(f"Prediction error: {e}")
+
+            st.subheader("Model Performance")
             col1, col2, col3 = st.columns(3)
-            col1.metric("Mean Absolute Error", f"{mae:,.2f} SAR")
-            col2.metric("Root Mean Squared Error", f"{rmse:,.2f} SAR")
+            col1.metric("MAE", f"{mae:,.2f} SAR")
+            col2.metric("RMSE", f"{rmse:,.2f} SAR")
             col3.metric("R² Score", f"{r2:.2f}")
 
-# Dataset page
 elif page == "Dataset":
     st.header("Dataset Overview")
-    
-    # Display the data
-    st.subheader("Raw Data")
     st.dataframe(df)
     
-    # Basic statistics
     st.subheader("Summary Statistics")
     st.write(df.describe())
     
-    # Data visualizations
-    st.subheader("Visualizations")
-    
-    # Check if required columns exist
-    if 'price_in_SAR' in df.columns:
-        # Histogram of prices
+    if 'price_in_sar' in df.columns:
         st.subheader("Price Distribution")
-        hist_values = np.histogram(df['price_in_SAR'], bins=20)[0]
-        st.bar_chart(hist_values)
+        st.bar_chart(df['price_in_sar'])
     
-    if 'area' in df.columns and 'price_in_SAR' in df.columns:
-        # Scatter plot of area vs price
+    if 'area' in df.columns and 'price_in_sar' in df.columns:
         st.subheader("Area vs Price")
-        chart_data = pd.DataFrame({
-            'Area (sqm)': df['area'],
-            'Price (SAR)': df['price_in_SAR']
-        })
-        st.scatter_chart(chart_data)
-    
-    if 'neighborhood_name' in df.columns and 'price_in_SAR' in df.columns:
-        # Average price by neighborhood
-        st.subheader("Average Price by Neighborhood")
-        avg_price_by_neighborhood = df.groupby('neighborhood_name')['price_in_SAR'].mean().reset_index()
-        st.bar_chart(avg_price_by_neighborhood, x='neighborhood_name', y='price_in_SAR')
+        st.scatter_chart(df, x='area', y='price_in_sar')
 
-# About page
-else:
+elif page == "About":
     st.header("About")
     st.write("""
-    This application was built using Streamlit and Scikit-learn to demonstrate how machine learning 
-    can be applied to real estate price prediction in Abha, Saudi Arabia.
-    
-    **Model Details:**
-    - Algorithm: Random Forest Regressor
-    - Features: Neighborhood, Property Area
-    - Target: Property Price in SAR
-    
-    **Future Improvements:**
-    - Add more features such as property age, number of rooms, etc.
-    - Implement more advanced algorithms like Gradient Boosting or Neural Networks
-    - Increase the dataset size for better predictions
+    Real estate price prediction app for Abha, Saudi Arabia.
+    Built with Streamlit and Scikit-learn.
     """)
-    
-    st.subheader("Resources")
-    st.markdown("""
-    - [Streamlit Documentation](https://docs.streamlit.io/)
-    - [Scikit-learn Documentation](https://scikit-learn.org/stable/)
-    - [Random Forest Algorithm](https://scikit-learn.org/stable/modules/ensemble.html#forest)
-    """)
+
+# Requirements.txt should contain:
+# streamlit>=1.22.0
+# pandas>=1.5.0
+# numpy>=1.24.0
+# scikit-learn>=1.2.0
