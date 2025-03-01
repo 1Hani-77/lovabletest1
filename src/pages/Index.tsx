@@ -8,6 +8,9 @@ import Footer from '@/components/Footer';
 
 const Index = () => {
   useEffect(() => {
+    // Scroll to top when component mounts
+    window.scrollTo(0, 0);
+    
     const handleRevealElements = () => {
       const elements = document.querySelectorAll('.reveal-on-scroll');
       
