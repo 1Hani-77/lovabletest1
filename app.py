@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -30,8 +29,27 @@ def load_data():
     data_url = "https://raw.githubusercontent.com/1Hani-77/TEST/refs/heads/main/abha%20real%20estate.csv"
     df = pd.read_csv(data_url)
     
-    # Clean up column names if needed (remove any spaces, special characters)
-    df.columns = df.columns.str.strip()
+    # Clean up column names (remove any spaces, special characters)
+    df.columns = df.columns.str.strip().str.lower()
+    
+    # Rename columns to match expected names if needed
+    column_mapping = {
+        'price': 'price_in_SAR',
+        'price(sar)': 'price_in_SAR',
+        'price in sar': 'price_in_SAR',
+        'neighborhood': 'neighborhood_name'
+    }
+    
+    df = df.rename(columns=column_mapping)
+    
+    # Print column names for debugging
+    st.sidebar.write("Dataset columns:", df.columns.tolist())
+    
+    # Make sure required columns exist
+    required_columns = ['neighborhood_name', 'area', 'price_in_SAR']
+    for col in required_columns:
+        if col not in df.columns:
+            st.sidebar.error(f"Required column '{col}' not found. Available columns: {df.columns.tolist()}")
     
     return df
 
@@ -119,6 +137,7 @@ elif page == "Prediction":
     
     if missing_columns:
         st.error(f"Missing required columns: {', '.join(missing_columns)}")
+        st.write("Available columns:", df.columns.tolist())
     else:
         # Train the model
         model_result = train_model(df)
